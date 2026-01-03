@@ -1,0 +1,5 @@
+{
+  "name": "3D 视觉专业重构器",
+  "description": "上传图片，将其映射到 3D 立方体上，通过旋转来使用 Gemini 3 Pro 图像模型生成超高质量的新视角透视图。",
+  "requestFramePermissions": []
+}
