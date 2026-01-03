@@ -10,11 +10,10 @@ export async function generatePerspectiveImage(
   const mimeType = base64Image.split(';')[0].split(':')[1] || 'image/png';
   const imageData = base64Image.split(',')[1];
 
-  // 逻辑：将旋转角度映射为模型更容易理解的方位词
+  // 映射旋转角度为方位词
   const azimuth = Math.round(-rotation.y % 360);
   const elevation = Math.round(-rotation.x % 360);
 
-  // 语义化描述生成
   const getDirectionDesc = (az: number, el: number) => {
     let horizontal = "";
     const absAz = Math.abs(az);
@@ -33,26 +32,38 @@ export async function generatePerspectiveImage(
 
   const semanticView = getDirectionDesc(azimuth, elevation);
 
-  const prompt = `ACT AS AN ADVANCED SPATIAL VISION RENDERER.
-  
-[INPUT ANALYSIS]
-Analyze the provided image as a 3D subject centered in a coordinate system.
+  // 第一步：利用 Gemini 3 Flash 进行提示词优化，强制要求姿态一致性
+  const optimizerResponse = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: {
+      parts: [
+        {
+          inlineData: {
+            data: imageData,
+            mimeType: mimeType,
+          },
+        },
+        { 
+          text: `你是一位顶级的 3D 摄影指导和 AI 提示词专家。
+          
+你的任务是：分析原图中的主体，并写下一段指令，让生成模型“旋转相机”到一个新视角：${semanticView} (方位角: ${azimuth}°, 仰角: ${elevation}°)。
 
-[TRANSFORMATION TASK]
-Re-render the scene from a new camera position:
-- VIEWPOINT: ${semanticView}
-- COORDINATES: Azimuth ${azimuth}°, Elevation ${elevation}°
+核心原则：动作冻结（ACTION FREEZE）。
+1. 必须精准描述主体的当前动作、肢体位置和姿势（Pose）。
+2. 严禁改变主体的任何动态。如果他在跑，新图中也必须是同样的跨步动作；如果他在坐，新图中严禁站起。
+3. 想象你正在围绕一个“蜡像”移动相机。描述在这个新视角下，主体原本被遮挡的侧面或背面应该呈现出什么样的视觉细节。
+4. 保持服装、材质、光影色调与原图 100% 匹配。
+5. 使用专业术语："Same static pose as source", "Frozen action", "Camera rotation only", "360-degree product photography", "Maintain anatomical consistency"。
 
-[RECONSTRUCTION RULES]
-1. PARALLAX SHIFT: Move the camera horizontally by ${azimuth} degrees. The features on the ${azimuth > 0 ? 'left' : 'right'} side of the subject should now be hidden, while the ${azimuth > 0 ? 'right' : 'left'} side should be revealed with high fidelity.
-2. VOLUME PRESERVATION: Maintain the exact 3D proportions and material textures of the original subject.
-3. FORESHORTENING: Apply realistic perspective foreshortening based on the ${azimuth}° angle.
-4. OCCLUSION HANDLING: Intelligently reconstruct (hallucinate) the textures and geometry that were previously hidden behind the subject in the frontal view.
-5. LIGHTING CONSISTENCY: Keep the global illumination fixed while updating local shadows and specular highlights relative to the new camera orientation.
+请直接输出优化后的纯英文提示词。` 
+        },
+      ],
+    },
+  });
 
-[OUTPUT]
-High-quality 1024x1024 photorealistic rendering. No UI, no text, no borders. Just the re-imagined scene.`;
+  const optimizedPrompt = optimizerResponse.text?.trim() || `A professional 3D camera rotation of the subject, maintaining the EXACT same pose and action as the source image, viewed from a ${semanticView} perspective.`;
 
+  // 第二步：使用优化后的提示词调用 Gemini 3 Pro Image
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
@@ -64,7 +75,7 @@ High-quality 1024x1024 photorealistic rendering. No UI, no text, no borders. Jus
               mimeType: mimeType,
             },
           },
-          { text: prompt },
+          { text: `TASK: Rotate camera to ${semanticView}. STRICT REQUIREMENT: Keep the person's pose, limb positions, and facial expression IDENTICAL to the source image. DO NOT RE-IMAGINE THE ACTION. ONLY CHANGE THE VIEWING ANGLE. \n\nDetailed Description: ${optimizedPrompt}` },
         ],
       },
       config: {
@@ -79,7 +90,7 @@ High-quality 1024x1024 photorealistic rendering. No UI, no text, no borders. Jus
       if (part.inlineData) {
         return {
           imageUrl: `data:image/png;base64,${part.inlineData.data}`,
-          prompt: prompt
+          prompt: optimizedPrompt
         };
       }
     }

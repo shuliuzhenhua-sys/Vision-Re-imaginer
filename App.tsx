@@ -21,7 +21,8 @@ import {
   ChevronUp,
   ChevronDown,
   Box,
-  Eye
+  Eye,
+  BrainCircuit
 } from 'lucide-react';
 
 declare global {
@@ -43,6 +44,7 @@ const App: React.FC = () => {
 
   const [hasKey, setHasKey] = useState<boolean>(false);
   const [previewItem, setPreviewItem] = useState<GeneratedResult | null>(null);
+  const [loadingPhase, setLoadingPhase] = useState<string>("");
 
   useEffect(() => {
     const checkKey = async () => {
@@ -113,6 +115,8 @@ const App: React.FC = () => {
     if (!state.originalImage) return;
     
     setState(prev => ({ ...prev, isGenerating: true, error: null }));
+    setLoadingPhase("Gemini 3 Flash 正在优化提示词...");
+
     try {
       const { imageUrl, prompt } = await generatePerspectiveImage(state.originalImage, state.currentRotation);
       
@@ -130,6 +134,7 @@ const App: React.FC = () => {
         history: [newResult, ...prev.history]
       }));
       setPreviewItem(newResult);
+      setLoadingPhase("");
     } catch (err: any) {
       console.error("Generation failed:", err);
       let errorMsg = "渲染引擎遇到障碍，请重试。";
@@ -144,6 +149,7 @@ const App: React.FC = () => {
         isGenerating: false,
         error: errorMsg
       }));
+      setLoadingPhase("");
     }
   };
 
@@ -220,9 +226,11 @@ const App: React.FC = () => {
              </h2>
              <div className="grid grid-cols-2 gap-2">
                <button onClick={() => setPreset(0, 0)} className="text-[9px] font-bold bg-white/5 hover:bg-white/10 py-2 rounded-lg border border-white/5">正面 (0°)</button>
+               <button onClick={() => setPreset(0, 180)} className="text-[9px] font-bold bg-white/5 hover:bg-white/10 py-2 rounded-lg border border-white/5">背面 (180°)</button>
                <button onClick={() => setPreset(0, 90)} className="text-[9px] font-bold bg-white/5 hover:bg-white/10 py-2 rounded-lg border border-white/5">左侧 (90°)</button>
                <button onClick={() => setPreset(0, -90)} className="text-[9px] font-bold bg-white/5 hover:bg-white/10 py-2 rounded-lg border border-white/5">右侧 (-90°)</button>
                <button onClick={() => setPreset(-90, 0)} className="text-[9px] font-bold bg-white/5 hover:bg-white/10 py-2 rounded-lg border border-white/5">顶视 (Top)</button>
+               <button onClick={() => setPreset(90, 0)} className="text-[9px] font-bold bg-white/5 hover:bg-white/10 py-2 rounded-lg border border-white/5">底视 (Bottom)</button>
                <button onClick={() => setPreset(-30, 45)} className="text-[9px] font-bold bg-white/5 hover:bg-white/10 py-2 rounded-lg border border-white/5">45° 俯视</button>
                <button onClick={() => setPreset(15, 30)} className="text-[9px] font-bold bg-white/5 hover:bg-white/10 py-2 rounded-lg border border-white/5">微仰视</button>
              </div>
@@ -324,7 +332,7 @@ const App: React.FC = () => {
               {state.isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  空间重构中...
+                  {loadingPhase || "重构中..."}
                 </>
               ) : (
                 <>
@@ -384,17 +392,17 @@ const App: React.FC = () => {
                     <div className="flex items-start gap-2">
                       <Info className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
                       <p className="text-[9px] text-indigo-300 leading-relaxed">
-                        已根据您的指令重构了视角。Gemini 3 Pro 会自动推断被遮挡的深度信息并生成补全纹理。
+                        视角已重构。通过 AI 提示词工程，Gemini 已自动补全被遮挡的纹理并重新映射了光影分布。
                       </p>
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-[9px] font-bold text-slate-600 uppercase">
-                      <Terminal className="w-3 h-3" /> 视觉指令详情
+                      <BrainCircuit className="w-3 h-3 text-emerald-400" /> 经 AI 优化的 Banana 指令
                     </div>
-                    <div className="bg-black/40 border border-white/5 rounded-lg p-3 font-mono text-[8px] text-slate-500 leading-relaxed overflow-hidden">
-                      {previewItem.prompt.substring(0, 200)}...
+                    <div className="bg-black/40 border border-white/5 rounded-lg p-3 font-mono text-[8px] text-slate-400 leading-relaxed overflow-hidden">
+                      {previewItem.prompt}
                     </div>
                   </div>
                 </div>
